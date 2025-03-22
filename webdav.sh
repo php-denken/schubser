@@ -54,33 +54,60 @@ if [ "$IGNORE_SSL" = "true" ]; then
     CURL_SSL_OPTS="--insecure"
 fi
 
+# Create log directory and file
+LOG_DIR="logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="${LOG_DIR}/webdav_$(date +%Y%m%d_%H%M%S).log"
+
+# Logging function
+log() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[${timestamp}] ${level}: ${message}" >> "$LOG_FILE"
+    
+    # Also print error messages to stderr
+    if [ "$level" = "ERROR" ]; then
+        echo "[${timestamp}] ${level}: ${message}" >&2
+    fi
+}
+
 # Function to upload a file
 upload_file() {
     local source="$1"
     local target="${WEBDAV_URL}${2}"
     
     echo "Uploading: $source -> $target"
+    log "INFO" "Starting upload: $source -> $target"
     
-    curl -u "$USERNAME:$PASSWORD" \
+    if curl -u "$USERNAME:$PASSWORD" \
          --upload-file "$source" \
          -f \
          $CURL_SSL_OPTS \
-         "$target"
-    
-    return $?
+         "$target"; then
+        log "INFO" "Successfully uploaded: $source"
+        return 0
+    else
+        log "ERROR" "Failed to upload: $source (Exit code: $?)"
+        return 1
+    fi
 }
 
 # Function to create remote directory
 create_directory() {
     local target="${WEBDAV_URL}${1}"
     
-    curl -u "$USERNAME:$PASSWORD" \
+    if curl -u "$USERNAME:$PASSWORD" \
          -X MKCOL \
          -f \
          $CURL_SSL_OPTS \
-         "$target"
-    
-    return $?
+         "$target"; then
+        log "INFO" "Created directory: $target"
+        return 0
+    else
+        log "ERROR" "Failed to create directory: $target (Exit code: $?)"
+        return 1
+    fi
 }
 
 # Function to handle directory upload
@@ -111,14 +138,18 @@ upload_directory() {
 # Process each argument
 for SOURCE in "$@"; do
     if [ -f "$SOURCE" ]; then
-        # Upload single file
         filename=$(basename "$SOURCE")
-        upload_file "$SOURCE" "$filename"
+        if ! upload_file "$SOURCE" "$filename"; then
+            log "ERROR" "Failed processing file: $SOURCE"
+        fi
     elif [ -d "$SOURCE" ]; then
-        # Upload directory
         dirname=$(basename "$SOURCE")
-        upload_directory "$SOURCE" "$dirname"
+        if ! upload_directory "$SOURCE" "$dirname"; then
+            log "ERROR" "Failed processing directory: $SOURCE"
+        fi
     else
-        echo "Warning: '$SOURCE' does not exist, skipping..."
+        log "ERROR" "File/directory does not exist: $SOURCE"
     fi
 done
+
+log "INFO" "Upload script completed"
