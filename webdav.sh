@@ -102,30 +102,45 @@ check_directory_exists() {
     fi
 }
 
+# Function to URL encode a string
+urlencode() {
+    local string="${1}"
+    local strlen=${#string}
+    local encoded=""
+    local pos c o
+
+    for (( pos=0 ; pos<strlen ; pos++ )); do
+        c=${string:$pos:1}
+        case "$c" in
+            [-_.~a-zA-Z0-9] ) o="${c}" ;;
+            * )               printf -v o '%%%02x' "'$c"
+        esac
+        encoded+="${o}"
+    done
+    echo "${encoded}"
+}
+
 # Function to upload a file
 upload_file() {
     local source="$1"
     local target_path="$2"
+    local encoded_target_path=$(urlencode "$target_path")
+    local target="${WEBDAV_URL}${encoded_target_path}"
     
-    if check_file_exists "$target_path"; then
-        log "INFO" "File already exists, skipping: $target_path"
+    log "DEBUG" "Uploading file to URL: $target"
+    
+    if check_file_exists "$encoded_target_path"; then
+        log "INFO" "File already exists, skipping: $encoded_target_path"
         return 0
     fi
     
-    local target="${WEBDAV_URL}${target_path}"
-    echo "Uploading: $source -> $target"
-    log "INFO" "Starting upload: $source -> $target"
-    
     if curl -u "$USERNAME:$PASSWORD" \
-         --upload-file "$source" \
-         -f \
+         -T "$source" \
          $CURL_SSL_OPTS \
-         "$target"; then
-        log "INFO" "Successfully uploaded: $source"
-        return 0
+         --url "$target"; then
+        log "INFO" "Successfully uploaded: $source to $target"
     else
-        log "ERROR" "Failed to upload: $source (Exit code: $?)"
-        return 1
+        log "ERROR" "Failed to upload: $source to $target (Exit code: $?)"
     fi
 }
 
