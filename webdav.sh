@@ -93,7 +93,10 @@ upload_directory() {
     
     # Upload all files and subdirectories
     find "$source" -type f -print0 | while IFS= read -r -d '' file; do
-        local relative_path="${file#$source/}"
+        # Remove the full source path including the directory name
+        local relative_path="${file#$source}"
+        # Remove leading slash if present
+        relative_path="${relative_path#/}"
         local dir_path=$(dirname "$relative_path")
         
         # Create parent directories if needed
