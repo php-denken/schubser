@@ -72,11 +72,47 @@ log() {
     fi
 }
 
+# Function to check if file exists
+check_file_exists() {
+    local target="${WEBDAV_URL}${1}"
+    
+    if curl -u "$USERNAME:$PASSWORD" \
+         -s \
+         -I \
+         $CURL_SSL_OPTS \
+         "$target" | grep -q "^HTTP.*200"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to check if directory exists
+check_directory_exists() {
+    local target="${WEBDAV_URL}${1}"
+    
+    if curl -u "$USERNAME:$PASSWORD" \
+         -s \
+         -X PROPFIND \
+         $CURL_SSL_OPTS \
+         "$target" | grep -q "200\|207"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Function to upload a file
 upload_file() {
     local source="$1"
-    local target="${WEBDAV_URL}${2}"
+    local target_path="$2"
     
+    if check_file_exists "$target_path"; then
+        log "INFO" "File already exists, skipping: $target_path"
+        return 0
+    fi
+    
+    local target="${WEBDAV_URL}${target_path}"
     echo "Uploading: $source -> $target"
     log "INFO" "Starting upload: $source -> $target"
     
@@ -95,7 +131,14 @@ upload_file() {
 
 # Function to create remote directory
 create_directory() {
-    local target="${WEBDAV_URL}${1}"
+    local target_path="$1"
+    
+    if check_directory_exists "$target_path"; then
+        log "INFO" "Directory already exists: $target_path"
+        return 0
+    fi
+    
+    local target="${WEBDAV_URL}${target_path}"
     
     if curl -u "$USERNAME:$PASSWORD" \
          -X MKCOL \
