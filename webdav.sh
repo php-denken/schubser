@@ -157,14 +157,22 @@ create_directory() {
 create_directory_recursive() {
     local path="$1"
     local current=""
+    declare -A dir_cache
     
     # Split path and create each level
     for dir in ${path//\// }; do
         current="${current}${dir}/"
         
+        # Skip if directory exists in cache
+        if [[ -n "${dir_cache[$current]}" ]]; then
+            log "INFO" "Directory exists (cached): $current"
+            continue
+        fi
+        
         # Skip if directory exists
         if check_directory_exists "$current"; then
             log "INFO" "Directory exists: $current"
+            dir_cache["$current"]=1
             continue
         fi
         
@@ -173,6 +181,9 @@ create_directory_recursive() {
             log "ERROR" "Failed to create directory level: $current"
             return 1
         fi
+        
+        # Add to cache
+        dir_cache["$current"]=1
         
         # Small delay to avoid race conditions
         sleep 0.5
@@ -185,6 +196,7 @@ create_directory_recursive() {
 upload_directory() {
     local source="$1"
     local target="$2"
+    declare -A dir_cache
     
     # Create complete directory path
     if ! create_directory_recursive "$target"; then
@@ -202,7 +214,10 @@ upload_directory() {
         
         # Create parent directories if needed
         if [ "$dir_path" != "." ]; then
-            create_directory "$target/$dir_path"
+            if [[ -z "${dir_cache[$target/$dir_path]}" ]]; then
+                create_directory "$target/$dir_path"
+                dir_cache["$target/$dir_path"]=1
+            fi
         fi
         
         upload_file "$file" "$target/$relative_path"
