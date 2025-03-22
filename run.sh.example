@@ -1,0 +1,7 @@
+#!/bin/bash
+
+rm -rf kompressed/SofortUpload/
+
+mv ../kompressor/examples/output/sebastian/files/SofortUpload/ kompressed/
+
+./webdav.sh kompressed/

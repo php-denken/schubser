@@ -153,13 +153,44 @@ create_directory() {
     fi
 }
 
+# Function to recursively create directory path
+create_directory_recursive() {
+    local path="$1"
+    local current=""
+    
+    # Split path and create each level
+    for dir in ${path//\// }; do
+        current="${current}${dir}/"
+        
+        # Skip if directory exists
+        if check_directory_exists "$current"; then
+            log "INFO" "Directory exists: $current"
+            continue
+        fi
+        
+        # Try to create directory
+        if ! create_directory "$current"; then
+            log "ERROR" "Failed to create directory level: $current"
+            return 1
+        fi
+        
+        # Small delay to avoid race conditions
+        sleep 0.5
+    done
+    
+    return 0
+}
+
 # Function to handle directory upload
 upload_directory() {
     local source="$1"
     local target="$2"
     
-    # Create remote directory
-    create_directory "$target"
+    # Create complete directory path
+    if ! create_directory_recursive "$target"; then
+        log "ERROR" "Failed to create directory structure: $target"
+        return 1
+    fi
     
     # Upload all files and subdirectories
     find "$source" -type f -print0 | while IFS= read -r -d '' file; do
